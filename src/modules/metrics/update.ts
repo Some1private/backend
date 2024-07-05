@@ -1,23 +1,27 @@
-import { User } from '@/db/models/User';
-import { Metrics } from '@/modules/metrics';
-import { EntityManager } from '@mikro-orm/postgresql';
+import { EntityManager } from '@mikro-orm/core';
+import { Metrics } from './metrics';
+import { scopedLogger } from '@/services/logger';
+import { User } from './entities/User'; // Adjust the import path as necessary
+
+const log = scopedLogger('metrics');
 
 export async function updateMetrics(em: EntityManager, metrics: Metrics) {
-  const users = await em
-    .createQueryBuilder(User)
-    .groupBy('namespace')
-    .count()
-    .select(['namespace', 'count'])
-    .execute<
-      {
-        namespace: string;
-        count: string;
-      }[]
-    >();
+  log.info('Updating user metrics...');
 
-  metrics.user.reset();
+  try {
+    const users = await em
+      .createQueryBuilder(User)
+      .select(['namespace', 'COUNT(*) AS count'])
+      .groupBy('namespace')
+      .execute<{ namespace: string; count: string }[]>();
 
-  users.forEach((v) => {
-    metrics?.user.inc({ namespace: v.namespace }, Number(v.count));
-  });
+    metrics.user.reset();
+
+    users.forEach((v) => {
+      log.info(`Updating metric for namespace: ${v.namespace}, count: ${v.count}`);
+      metrics.user.labels({ namespace: v.namespace }).set(Number(v.count));
+    });
+  } catch (error) {
+    log.error('Error updating user metrics', error);
+  }
 }
