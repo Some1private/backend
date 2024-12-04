@@ -1,7 +1,7 @@
-import { EntityManager } from '@mikro-orm/core';
-import { Metrics } from './metrics';
+import { EntityManager } from '@mikro-orm/postgresql';
+import { Metrics } from '@/modules/metrics';
 import { scopedLogger } from '@/services/logger';
-import { User } from './entities/User'; // Adjust the import path as necessary
+import { User } from '@/db/models/User';
 
 const log = scopedLogger('metrics');
 
@@ -17,9 +17,9 @@ export async function updateMetrics(em: EntityManager, metrics: Metrics) {
 
     metrics.user.reset();
 
-    users.forEach((v) => {
+    users.forEach((v: { namespace: string; count: string }) => {
       log.info(`Updating metric for namespace: ${v.namespace}, count: ${v.count}`);
-      metrics.user.labels({ namespace: v.namespace }).set(Number(v.count));
+      metrics.user.labels({ namespace: v.namespace }).inc(Number(v.count));
     });
   } catch (error) {
     log.error('Error updating user metrics', error);
